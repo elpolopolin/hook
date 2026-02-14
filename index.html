@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Control de Viaje</title>
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background: #f4f4f4;
+    padding: 20px;
+}
+h2 {
+    margin-top: 30px;
+}
+.section {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+.item {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px;
+    margin: 4px 0;
+    cursor: pointer;
+}
+.expected {
+    background: #fff3b0;
+}
+.spent {
+    background: #c7f0c2;
+}
+button {
+    padding: 4px 8px;
+    cursor: pointer;
+}
+.total {
+    font-weight: bold;
+    margin-top: 10px;
+}
+.plus {
+    float: right;
+}
+</style>
+</head>
+
+<body>
+
+<h1>✈️ Viaje – Control de Gastos</h1>
+
+<div id="app"></div>
+
+<script>
+const dataDefault = {
+  sections: {
+    "New York (7 días)": [
+      { desc: "Alojamiento", amount: 600, status: "expected" },
+      { desc: "Metro 7 días", amount: 33, status: "expected" },
+      { desc: "Museo / Mirador", amount: 50, status: "expected" },
+      { desc: "Patinaje Rockefeller", amount: 40, status: "expected" },
+      { desc: "Comidas", amount: 245, status: "expected" }
+    ],
+    "Miami + Orlando (20 días)": [
+      { desc: "Comidas", amount: 600, status: "expected" },
+      { desc: "Tren Miami–Orlando", amount: 150, status: "expected" },
+      { desc: "Disney 1 día", amount: 150, status: "expected" }
+    ],
+    "Compras": [
+      { desc: "MacBook", amount: 900, status: "expected" },
+      { desc: "Outlets / ropa", amount: 300, status: "expected" }
+    ]
+  }
+};
+
+let data = JSON.parse(localStorage.getItem("viajeData")) || dataDefault;
+
+function save() {
+  localStorage.setItem("viajeData", JSON.stringify(data));
+}
+
+function render() {
+  const app = document.getElementById("app");
+  app.innerHTML = "";
+
+  let totalExpected = 0;
+  let totalSpent = 0;
+
+  for (const section in data.sections) {
+    const div = document.createElement("div");
+    div.className = "section";
+
+    const title = document.createElement("h2");
+    title.innerHTML = section + 
+      `<button class="plus" onclick="addItem('${section}')">➕</button>`;
+    div.appendChild(title);
+
+    data.sections[section].forEach((item, index) => {
+      const row = document.createElement("div");
+      row.className = `item ${item.status}`;
+      row.innerHTML = `<span>${item.desc}</span><span>USD ${item.amount}</span>`;
+      row.onclick = () => editItem(section, index);
+      div.appendChild(row);
+
+      if (item.status === "expected") totalExpected += item.amount;
+      if (item.status === "spent") totalSpent += item.amount;
+    });
+
+    app.appendChild(div);
+  }
+
+  const totals = document.createElement("div");
+  totals.className = "section";
+  totals.innerHTML = `
+    <div class="total expected">🟡 Esperado: USD ${totalExpected}</div>
+    <div class="total spent">🟢 Gastado: USD ${totalSpent}</div>
+  `;
+  app.appendChild(totals);
+}
+
+function addItem(section) {
+  const desc = prompt("Descripción del gasto:");
+  const amount = parseFloat(prompt("Monto USD:"));
+  if (!desc || isNaN(amount)) return;
+  data.sections[section].push({ desc, amount, status: "expected" });
+  save();
+  render();
+}
+
+function editItem(section, index) {
+  const item = data.sections[section][index];
+  const action = prompt(
+    "Escribí:\n1 = Editar\n2 = Marcar como gastado",
+    "1"
+  );
+
+  if (action === "1") {
+    const newDesc = prompt("Descripción:", item.desc);
+    const newAmount = parseFloat(prompt("Monto USD:", item.amount));
+    if (!newDesc || isNaN(newAmount)) return;
+    item.desc = newDesc;
+    item.amount = newAmount;
+  }
+
+  if (action === "2") {
+    item.status = "spent";
+  }
+
+  save();
+  render();
+}
+
+render();
+</script>
+
+</body>
+</html>
