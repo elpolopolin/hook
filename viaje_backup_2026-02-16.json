@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "savedAt": "2026-02-16T03:28:37.051Z",
+  "budgetUSD": 4500,
+  "data": {
+    "sections": {
+      "New York (7 días)": [
+        {
+          "updatedAt": null,
+          "desc": "Alojamiento",
+          "amount": 705,
+          "status": "spent"
+        },
+        {
+          "updatedAt": "2026-02-16T03:17:13.524Z",
+          "desc": "Metro 7 días",
+          "amount": 33,
+          "status": "expected"
+        },
+        {
+          "updatedAt": "2026-02-16T03:17:11.463Z",
+          "desc": "Museo / Mirador",
+          "amount": 50,
+          "status": "expected"
+        },
+        {
+          "updatedAt": "2026-02-16T03:17:05.626Z",
+          "desc": "Patinaje Rockefeller",
+          "amount": 40,
+          "status": "expected"
+        },
+        {
+          "updatedAt": "2026-02-16T03:17:03.915Z",
+          "desc": "Comidas",
+          "amount": 250,
+          "status": "expected"
+        },
+        {
+          "updatedAt": "2026-02-16T03:17:02.036Z",
+          "desc": "mas",
+          "amount": 150,
+          "status": "expected"
+        },
+        {
+          "updatedAt": "2026-02-16T02:46:43.055Z",
+          "desc": "viaje_AVION",
+          "amount": 90,
+          "status": "spent"
+        },
+        {
+          "updatedAt": "2026-02-16T03:16:53.799Z",
+          "desc": "resort_fee_Ncy",
+          "amount": 87,
+          "status": "spent"
+        }
+      ],
+      "Miami + Orlando (20 días)": [
+        {
+          "updatedAt": null,
+          "desc": "Comidas",
+          "amount": 600,
+          "status": "expected"
+        },
+        {
+          "updatedAt": null,
+          "desc": "Tren Miami–Orlando",
+          "amount": 150,
+          "status": "expected"
+        },
+        {
+          "updatedAt": null,
+          "desc": "Disney 1 día",
+          "amount": 150,
+          "status": "expected"
+        }
+      ],
+      "Compras": [
+        {
+          "updatedAt": "2026-02-16T01:57:20.736Z",
+          "desc": "MacBook",
+          "amount": 900,
+          "status": "spent"
+        },
+        {
+          "updatedAt": null,
+          "desc": "Outlets / ropa",
+          "amount": 300,
+          "status": "expected"
+        },
+        {
+          "updatedAt": "2026-02-16T03:18:08.024Z",
+          "desc": "iphone?",
+          "amount": 500,
+          "status": "spent"
+        }
+      ]
+    }
+  }
+}
