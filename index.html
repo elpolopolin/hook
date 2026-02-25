@@ -109,7 +109,7 @@ body{
   backdrop-filter: blur(10px);
 }
 
-/* ===== NUEVO: chip de "te queda" ===== */
+/* chip "te queda" */
 .balanceWrap{
   display:flex;
   justify-content: flex-start;
@@ -156,7 +156,7 @@ body{
 /* Resumen global */
 .heroTotals{
   display:grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
   gap: 12px;
   margin-bottom: 14px;
 }
@@ -263,6 +263,11 @@ body{
 }
 .badgeSpent{ border-color: var(--spent-br); color: var(--spent-tx); background: rgba(0,240,120,.10); }
 .badgeExpected{ border-color: var(--expected-br); color: var(--expected-tx); background: rgba(255,199,0,.10); }
+.badgeCard{
+  border-color: rgba(112,153,255,.45);
+  background: rgba(112,153,255,.12);
+  color: rgba(220,235,255,.95);
+}
 
 .priceChip{
   display:flex;
@@ -284,7 +289,7 @@ body{
   padding-top: 12px;
   border-top: 1px dashed rgba(255,255,255,.12);
   display:grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
   gap: 10px;
 }
 .tCard{
@@ -312,6 +317,8 @@ body{
 .tSpent{ border-color: var(--danger-br); background: var(--danger-bg); }
 .tSpent .value{ color: var(--danger-tx); }
 .tAll{ border-color: rgba(255,255,255,.18); background: rgba(255,255,255,.06); }
+.tCardCard{ border-color: rgba(112,153,255,.35); background: rgba(112,153,255,.10); }
+.tCardCard .value{ color: rgba(220,235,255,.95); }
 
 @media (max-width: 820px){
   .heroTotals{ grid-template-columns: 1fr; }
@@ -329,45 +336,37 @@ body{
         <h1>✈️ Viaje – Control de Gastos</h1>
         <p>Click en un ítem para editar o marcar como gastado. Tocá “Te queda” para setear tu dinero inicial.</p>
       </div>
-     <div class="toolbar">
-    <button class="btn btnPrimary" onclick="exportPDF()">📄 Exportar PDF</button>
-    <button class="btn" onclick="downloadJSON()">⬇ Exportar JSON</button>
-    <button class="btn" onclick="triggerImport()">⬆ Importar JSON</button>
-    <button class="btn" onclick="resetData()">🧹 Reset</button>
+      <div class="toolbar">
+        <button class="btn btnPrimary" onclick="exportPDF()">📄 Exportar PDF</button>
+        <button class="btn" onclick="downloadJSON()">⬇ Exportar JSON</button>
+        <button class="btn" onclick="triggerImport()">⬆ Importar JSON</button>
+        <button class="btn" onclick="resetData()">🧹 Reset</button>
+        <input id="importFile" type="file" accept="application/json" style="display:none" />
+      </div>
+    </div>
 
-    <!-- input oculto para importar -->
-   <input id="importFile" type="file" accept="application/json" style="display:none" />
-  </div>
-  </div>
     <div id="hero"></div>
     <div id="app"></div>
   </div>
 
 <script>
+/* ==========================
+   CONFIG / DEFAULT
+========================== */
+const CATEGORY_ORDER = ["Ropa", "Comida", "Electrónica", "Entretenimiento"];
+
 const dataDefault = {
   sections: {
-    "New York (7 días)": [
-      { desc: "Alojamiento", amount: 600, status: "expected", updatedAt: null },
-      { desc: "Metro 7 días", amount: 33, status: "expected", updatedAt: null },
-      { desc: "Museo / Mirador", amount: 50, status: "expected", updatedAt: null },
-      { desc: "Patinaje Rockefeller", amount: 40, status: "expected", updatedAt: null },
-      { desc: "Comidas", amount: 245, status: "expected", updatedAt: null }
-    ],
-    "Miami + Orlando (20 días)": [
-      { desc: "Comidas", amount: 600, status: "expected", updatedAt: null },
-      { desc: "Tren Miami–Orlando", amount: 150, status: "expected", updatedAt: null },
-      { desc: "Disney 1 día", amount: 150, status: "expected", updatedAt: null }
-    ],
-    "Compras": [
-      { desc: "MacBook", amount: 900, status: "expected", updatedAt: null },
-      { desc: "Outlets / ropa", amount: 300, status: "expected", updatedAt: null }
-    ]
+    "Ropa": [],
+    "Comida": [],
+    "Electrónica": [],
+    "Entretenimiento": []
   }
 };
 
 let data = JSON.parse(localStorage.getItem("viajeData")) || dataDefault;
 
-// NUEVO: dinero inicial
+// dinero inicial
 const BUDGET_KEY = "viajeBudgetUSD";
 let budgetUSD = Number(localStorage.getItem(BUDGET_KEY)) || 0;
 
@@ -391,19 +390,131 @@ function fmtMoney(n){
   return num.toLocaleString("es-AR", { maximumFractionDigits: 2 });
 }
 
+/* ==========================
+   MIGRACIÓN A CATEGORÍAS
+   (por si importás / tenés data vieja)
+========================== */
+function ensureCategorySkeleton(obj){
+  const out = { sections: {} };
+  for (const c of CATEGORY_ORDER) out.sections[c] = [];
+  if (obj && obj.sections){
+    for (const c of CATEGORY_ORDER){
+      if (Array.isArray(obj.sections[c])) out.sections[c] = obj.sections[c];
+    }
+  }
+  return out;
+}
+
+function originSuffixFromSection(sectionName){
+  const s = String(sectionName || "").toLowerCase();
+  if (s.includes("miami")) return "_miami";
+  if (s.includes("new york") || s.includes("ny")) return "_ny";
+  if (s.includes("orlando")) return "_orlando";
+  return "";
+}
+
+function normalizePayment(payment, desc){
+  if (payment === "card" || payment === "cash") return payment;
+  const d = String(desc || "").toLowerCase();
+  if (d.includes("tarjeta") || d.includes("card") || d.includes("credit")) return "card";
+  return "cash";
+}
+
+function cleanDesc(desc){
+  return String(desc || "").replace(/_tarjetacredito/gi, "").trim();
+}
+
+function classifyCategory(desc){
+  const d = String(desc || "").toLowerCase();
+
+  // Electrónica
+  if (/(macbook|iphone|airpods|ipad|laptop|notebook|cargador|adapter|adaptador|usb|auricular)/i.test(d)) return "Electrónica";
+
+  // Ropa
+  if (/(ropa|outlet|remera|pantal|campera|buzo|hoodie|zapa|zapat|nike|jordan|under\s*armor|abercrombie|calzon|calzonc|medias|north\s*face|columbia|polar|sweater|jean|short|shirt|t-shirt|sock)/i.test(d)) return "Ropa";
+
+  // Comida
+  if (/(comida|desayuno|almuerzo|cena|cafe|café|latte|restaurant|burger|pizza|taco|chipotle|starbucks|agua|soda|pepsi|coca|publix|walmart|sedano|supermarket|snack|helado|ice\s*cream)/i.test(d)) return "Comida";
+
+  // Default
+  return "Entretenimiento";
+}
+
+function migrateToCategoriesIfNeeded(obj){
+  if(!obj || !obj.sections) return ensureCategorySkeleton(obj);
+
+  const keys = Object.keys(obj.sections);
+  const alreadyCategorized =
+    CATEGORY_ORDER.every(k => keys.includes(k)) &&
+    keys.length === CATEGORY_ORDER.length;
+
+  if (alreadyCategorized) {
+    // asegurar campos
+    for (const c of CATEGORY_ORDER){
+      obj.sections[c] = (obj.sections[c] || []).map(it => ({
+        desc: cleanDesc(it.desc),
+        amount: Number(it.amount) || 0,
+        status: (it.status === "spent") ? "spent" : "expected",
+        payment: normalizePayment(it.payment, it.desc),
+        updatedAt: it.updatedAt ?? null
+      }));
+    }
+    return obj;
+  }
+
+  // migrar desde secciones viejas
+  const out = ensureCategorySkeleton({});
+  for (const oldSection in obj.sections){
+    const suffix = originSuffixFromSection(oldSection);
+    const items = Array.isArray(obj.sections[oldSection]) ? obj.sections[oldSection] : [];
+
+    for (const it of items){
+      const baseDesc = cleanDesc(it.desc);
+      const payment = normalizePayment(it.payment, it.desc);
+      const newDesc = suffix ? `${baseDesc}${suffix}` : baseDesc;
+
+      const cat = classifyCategory(newDesc);
+      out.sections[cat].push({
+        desc: newDesc,
+        amount: Number(it.amount) || 0,
+        status: (it.status === "spent") ? "spent" : "expected",
+        payment,
+        updatedAt: it.updatedAt ?? null
+      });
+    }
+  }
+
+  return out;
+}
+
+// aplico migración apenas carga
+data = migrateToCategoriesIfNeeded(data);
+save();
+
+/* ==========================
+   TOTALES
+========================== */
 function computeTotals(){
   let expected = 0;
   let spent = 0;
+  let cardSpent = 0;
+
   for(const section in data.sections){
     for(const item of data.sections[section]){
-      if(item.status === "expected") expected += Number(item.amount) || 0;
-      if(item.status === "spent") spent += Number(item.amount) || 0;
+      const amt = Number(item.amount) || 0;
+      if(item.status === "expected") expected += amt;
+      if(item.status === "spent") {
+        spent += amt;
+        if(item.payment === "card") cardSpent += amt;
+      }
     }
   }
-  return { expected, spent, total: expected + spent };
+  return { expected, spent, cardSpent, total: expected + spent };
 }
 
-// NUEVO: editar presupuesto al tocar el chip
+/* ==========================
+   UI: Presupuesto
+========================== */
 function editBudget(){
   const current = budgetUSD || 0;
   const raw = prompt(
@@ -422,21 +533,12 @@ function renderHero(){
   const hero = document.getElementById("hero");
   const t = computeTotals();
 
-  // NUEVO: balance
   const remaining = (budgetUSD || 0) - t.spent;
   const hasBudget = (budgetUSD || 0) > 0;
 
-  const balanceClass = !hasBudget
-    ? ""
-    : (remaining >= 0 ? "balanceOk" : "balanceWarn");
-
-  const balanceText = !hasBudget
-    ? "Tocá para setear"
-    : `USD ${fmtMoney(remaining)}`;
-
-  const hintText = !hasBudget
-    ? "Dinero inicial"
-    : `Inicial: USD ${fmtMoney(budgetUSD)}`;
+  const balanceClass = !hasBudget ? "" : (remaining >= 0 ? "balanceOk" : "balanceWarn");
+  const balanceText = !hasBudget ? "Tocá para setear" : `USD ${fmtMoney(remaining)}`;
+  const hintText = !hasBudget ? "Dinero inicial" : `Inicial: USD ${fmtMoney(budgetUSD)}`;
 
   hero.innerHTML = `
     <div class="balanceWrap">
@@ -452,10 +554,17 @@ function renderHero(){
         <div class="label"><span>🟢 Gastado (hasta ahora)</span><span>Global</span></div>
         <div class="value">USD ${fmtMoney(t.spent)}</div>
       </div>
+
+      <div class="heroCard heroTotal">
+        <div class="label"><span>💳 Gastado con tarjeta</span><span>Global</span></div>
+        <div class="value">USD ${fmtMoney(t.cardSpent)}</div>
+      </div>
+
       <div class="heroCard heroExpected">
         <div class="label"><span>🟡 Esperado (por gastar)</span><span>Global</span></div>
         <div class="value">USD ${fmtMoney(t.expected)}</div>
       </div>
+
       <div class="heroCard heroTotal">
         <div class="label"><span>💰 Total (plan completo)</span><span>Global</span></div>
         <div class="value">USD ${fmtMoney(t.total)}</div>
@@ -464,13 +573,19 @@ function renderHero(){
   `;
 }
 
+/* ==========================
+   RENDER
+========================== */
 function render() {
   renderHero();
 
   const app = document.getElementById("app");
   app.innerHTML = "";
 
-  for (const section in data.sections) {
+  // asegurar orden de categorías
+  for (const section of CATEGORY_ORDER) {
+    if(!Array.isArray(data.sections[section])) data.sections[section] = [];
+
     const wrap = document.createElement("div");
     wrap.className = "section";
 
@@ -493,6 +608,7 @@ function render() {
 
     let sectionExpected = 0;
     let sectionSpent = 0;
+    let sectionCardSpent = 0;
 
     data.sections[section].forEach((item, index) => {
       const row = document.createElement("div");
@@ -502,11 +618,16 @@ function render() {
         ? `<span class="badge badgeSpent">Gastado</span>`
         : `<span class="badge badgeExpected">Esperado</span>`;
 
+      const payBadge = (item.payment === "card")
+        ? `<span class="badge badgeCard">💳 Tarjeta</span>`
+        : "";
+
       row.innerHTML = `
         <div class="itemDesc">
           <div class="name">${item.desc}</div>
           <div class="sub">
             ${badge}
+            ${payBadge}
             <span>Actualizado: ${fmtDate(item.updatedAt)}</span>
             <span>Click para editar</span>
           </div>
@@ -516,13 +637,18 @@ function render() {
       row.onclick = () => editItem(section, index);
       list.appendChild(row);
 
-      if (item.status === "expected") sectionExpected += Number(item.amount) || 0;
-      if (item.status === "spent") sectionSpent += Number(item.amount) || 0;
+      const amt = Number(item.amount) || 0;
+      if (item.status === "expected") sectionExpected += amt;
+      if (item.status === "spent") {
+        sectionSpent += amt;
+        if (item.payment === "card") sectionCardSpent += amt;
+      }
     });
 
     wrap.appendChild(list);
 
     const sectionTotalAll = sectionExpected + sectionSpent;
+
     const totals = document.createElement("div");
     totals.className = "sectionTotals";
     totals.innerHTML = `
@@ -530,10 +656,17 @@ function render() {
         <div class="label"><span>🔴 Gastado</span><span>Sección</span></div>
         <div class="value">USD ${fmtMoney(sectionSpent)}</div>
       </div>
+
+      <div class="tCard tCardCard">
+        <div class="label"><span>💳 Tarjeta</span><span>Sección</span></div>
+        <div class="value">USD ${fmtMoney(sectionCardSpent)}</div>
+      </div>
+
       <div class="tCard tExpected">
         <div class="label"><span>🟡 Esperado</span><span>Sección</span></div>
         <div class="value">USD ${fmtMoney(sectionExpected)}</div>
       </div>
+
       <div class="tCard tAll">
         <div class="label"><span>Total</span><span>Sección</span></div>
         <div class="value">USD ${fmtMoney(sectionTotalAll)}</div>
@@ -545,24 +678,21 @@ function render() {
   }
 }
 
-function ensureItemDates(){
-  for(const section in data.sections){
-    data.sections[section] = data.sections[section].map(it => ({
-      updatedAt: it.updatedAt ?? null,
-      ...it
-    }));
-  }
-}
-
+/* ==========================
+   CRUD ITEMS
+========================== */
 function addItem(section) {
   const desc = prompt("Descripción del gasto:");
   const amount = parseFloat(prompt("Monto USD:"));
   if (!desc || isNaN(amount)) return;
 
+  const pay = prompt("Pago (cash/card):", "cash");
+
   data.sections[section].push({
-    desc,
+    desc: cleanDesc(desc),
     amount,
     status: "expected",
+    payment: (String(pay || "").toLowerCase() === "card") ? "card" : "cash",
     updatedAt: nowISO()
   });
 
@@ -574,7 +704,7 @@ function editItem(section, index) {
   const item = data.sections[section][index];
 
   const action = prompt(
-    "Escribí:\n1 = Editar\n2 = Marcar como gastado\n3 = Volver a esperado\n4 = Eliminar",
+    "Escribí:\n1 = Editar\n2 = Marcar como gastado\n3 = Volver a esperado\n4 = Eliminar\n5 = Cambiar pago (cash/card)",
     "1"
   );
 
@@ -582,18 +712,30 @@ function editItem(section, index) {
     const newDesc = prompt("Descripción:", item.desc);
     const newAmount = parseFloat(prompt("Monto USD:", item.amount));
     if (!newDesc || isNaN(newAmount)) return;
-    item.desc = newDesc;
+
+    item.desc = cleanDesc(newDesc);
     item.amount = newAmount;
+
+    const pay = prompt("Pago (cash/card):", item.payment || "cash");
+    item.payment = (String(pay || "").toLowerCase() === "card") ? "card" : "cash";
+
     item.updatedAt = nowISO();
   }
 
   if (action === "2") {
     item.status = "spent";
+    const pay = prompt("¿Cómo pagaste? (cash/card):", item.payment || "cash");
+    item.payment = (String(pay || "").toLowerCase() === "card") ? "card" : "cash";
     item.updatedAt = nowISO();
   }
 
   if (action === "3") {
     item.status = "expected";
+    item.updatedAt = nowISO();
+  }
+
+  if (action === "5") {
+    item.payment = (item.payment === "card") ? "cash" : "card";
     item.updatedAt = nowISO();
   }
 
@@ -610,16 +752,17 @@ function resetData(){
   const ok = confirm("¿Resetear todo a valores por defecto?");
   if(!ok) return;
   data = JSON.parse(JSON.stringify(dataDefault));
-  // no reseteo tu budget por si querés mantenerlo
+  data = migrateToCategoriesIfNeeded(data);
   save();
   render();
 }
 
-
-
+/* ==========================
+   SNAPSHOT / JSON
+========================== */
 function getSnapshot() {
   return {
-    version: 1,
+    version: 2,
     savedAt: new Date().toISOString(),
     budgetUSD: budgetUSD || 0,
     data
@@ -659,7 +802,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const text = await file.text();
       const snapshot = JSON.parse(text);
 
-      // soporte por si importás un JSON viejo sin wrapper
+      // soporte por si importás un JSON viejo
       if (snapshot.data && snapshot.budgetUSD !== undefined) {
         data = snapshot.data;
         budgetUSD = Number(snapshot.budgetUSD) || 0;
@@ -669,6 +812,8 @@ document.addEventListener("DOMContentLoaded", () => {
         throw new Error("Formato inválido");
       }
 
+      data = migrateToCategoriesIfNeeded(data);
+
       save();
       render();
       alert("✅ Importado OK");
@@ -676,11 +821,14 @@ document.addEventListener("DOMContentLoaded", () => {
       alert("❌ No pude importar ese archivo JSON. Asegurate de que sea un backup válido.");
     }
   });
+
+  // primera render
+  render();
 });
 
-
-
-/* ===== Export PDF (incluye presupuesto + te queda) ===== */
+/* ==========================
+   EXPORT PDF
+========================== */
 function exportPDF(){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "a4" });
@@ -704,35 +852,40 @@ function exportPDF(){
   y += 16;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  doc.text(`Gastado: USD ${fmtMoney(totals.spent)} | Esperado: USD ${fmtMoney(totals.expected)} | Total: USD ${fmtMoney(totals.total)}`, marginX, y);
+  doc.text(
+    `Gastado: USD ${fmtMoney(totals.spent)} | Tarjeta: USD ${fmtMoney(totals.cardSpent)} | Esperado: USD ${fmtMoney(totals.expected)} | Total: USD ${fmtMoney(totals.total)}`,
+    marginX,
+    y
+  );
 
   y += 14;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   doc.text(`Dinero inicial: USD ${fmtMoney(budgetUSD || 0)} | Te queda: USD ${fmtMoney(remaining)}`, marginX, y);
 
-  y += 16;
+  y += 18;
 
-  for(const section in data.sections){
+  for(const section of CATEGORY_ORDER){
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
     doc.text(section, marginX, y);
     y += 10;
 
-    const rows = data.sections[section].map(it => ([
+    const rows = (data.sections[section] || []).map(it => ([
       it.desc,
       (it.status === "spent" ? "Gastado" : "Esperado"),
+      (it.payment === "card" ? "Tarjeta" : "Cash"),
       `USD ${fmtMoney(it.amount)}`,
       fmtDate(it.updatedAt)
     ]));
 
     doc.autoTable({
       startY: y,
-      head: [["Detalle", "Estado", "Monto", "Última actualización"]],
+      head: [["Detalle", "Estado", "Pago", "Monto", "Última actualización"]],
       body: rows,
       styles: { font: "helvetica", fontSize: 9, cellPadding: 6 },
       headStyles: { fillColor: [30, 41, 59] },
-      columnStyles: { 2: { halign: "right" } },
+      columnStyles: { 3: { halign: "right" } },
       margin: { left: marginX, right: marginX }
     });
 
@@ -746,10 +899,6 @@ function exportPDF(){
 
   doc.save(`viaje_gastos_${new Date().toISOString().slice(0,10)}.pdf`);
 }
-
-ensureItemDates();
-save();
-render();
 </script>
 
 </body>
