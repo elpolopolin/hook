@@ -353,14 +353,16 @@ body{
 /* ==========================
    CONFIG / DEFAULT
 ========================== */
-const CATEGORY_ORDER = ["Ropa", "Comida", "Electrónica", "Entretenimiento"];
+// ✅ Agregada la categoría New York
+const CATEGORY_ORDER = ["Ropa", "Comida", "Electrónica", "Entretenimiento", "New York"];
 
 const dataDefault = {
   sections: {
     "Ropa": [],
     "Comida": [],
     "Electrónica": [],
-    "Entretenimiento": []
+    "Entretenimiento": [],
+    "New York": []
   }
 };
 
@@ -440,17 +442,24 @@ function classifyCategory(desc){
   return "Entretenimiento";
 }
 
+// ✅ IMPORTANTE: si tu JSON ya está en categorías, NO lo cambia ni reclasifica.
+// Solo agrega "New York" si falta.
 function migrateToCategoriesIfNeeded(obj){
   if(!obj || !obj.sections) return ensureCategorySkeleton(obj);
 
   const keys = Object.keys(obj.sections);
-  const alreadyCategorized =
-    CATEGORY_ORDER.every(k => keys.includes(k)) &&
-    keys.length === CATEGORY_ORDER.length;
 
-  if (alreadyCategorized) {
-    // asegurar campos
-    for (const c of CATEGORY_ORDER){
+  const CORE = ["Ropa", "Comida", "Electrónica", "Entretenimiento"];
+  const hasCore = CORE.every(k => keys.includes(k));
+
+  if (hasCore) {
+    // asegurar categorías nuevas sin tocar las existentes
+    for (const c of CATEGORY_ORDER) {
+      if (!Array.isArray(obj.sections[c])) obj.sections[c] = [];
+    }
+
+    // normalizar campos sin mover items
+    for (const c of CATEGORY_ORDER) {
       obj.sections[c] = (obj.sections[c] || []).map(it => ({
         desc: cleanDesc(it.desc),
         amount: Number(it.amount) || 0,
@@ -459,10 +468,11 @@ function migrateToCategoriesIfNeeded(obj){
         updatedAt: it.updatedAt ?? null
       }));
     }
+
     return obj;
   }
 
-  // migrar desde secciones viejas
+  // migrar desde secciones viejas (Miami, etc.)
   const out = ensureCategorySkeleton({});
   for (const oldSection in obj.sections){
     const suffix = originSuffixFromSection(oldSection);
